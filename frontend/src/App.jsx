@@ -1,16 +1,24 @@
 import React from "react";
-// import './App.css'; // This line should be completely removed or commented out if App.css was deleted
+import OrderForm from "./components/OrderForm.jsx";
+import MatchingResults from "./components/MatchingResults.jsx"; // Import the new component
 
 function App() {
   return (
     <div className="App">
-      <header className="App-header">
+      <header
+        className="App-header"
+        style={{
+          textAlign: "center",
+          padding: "20px",
+          backgroundColor: "#f0f0f0",
+          borderBottom: "1px solid #ddd",
+        }}
+      >
         <h1>Order Matching System</h1>
-        {/* Components for Order Form and Matching Results will go here */}
       </header>
-      <main>
-        {/* Content for your order form and matching display */}
-        <p>Frontend is working!</p>
+      <main style={{ padding: "20px" }}>
+        <OrderForm />
+        <MatchingResults /> {/* Render the MatchingResults component here */}
       </main>
     </div>
   );
