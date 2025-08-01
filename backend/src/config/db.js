@@ -1,10 +1,10 @@
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  user: "myappuser", // Using hardcoded values now
+  user: "myappuser",
   host: "localhost",
   database: "order_matching_db",
-  password: "mysecretpassword", // Make sure this matches your actual password
+  password: "mysecretpassword",
   port: 5432,
 });
 

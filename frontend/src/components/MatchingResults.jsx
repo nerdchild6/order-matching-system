@@ -59,8 +59,8 @@ function MatchingResults() {
   return (
     <div
       style={{
-        maxWidth: "800px",
-        margin: "40px auto",
+        // maxWidth: "800px",
+        // margin: "40px auto",
         padding: "20px",
         border: "1px solid #ccc",
         borderRadius: "8px",

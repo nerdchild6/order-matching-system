@@ -16,7 +16,13 @@ function App() {
       >
         <h1>Order Matching System</h1>
       </header>
-      <main style={{ padding: "20px" }}>
+      <main
+        style={{
+          padding: "20px",
+          flex: 1,
+          justifyContent: "center",
+        }}
+      >
         <OrderForm />
         <MatchingResults /> {/* Render the MatchingResults component here */}
       </main>
