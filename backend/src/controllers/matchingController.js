@@ -7,49 +7,80 @@ exports.runMatchingAlgorithm = async (req, res) => {
     // 1. Fetch all pending Buy orders (highest price, then oldest time, then largest volume)
     const buyOrdersResult = await pool.query(
       `SELECT * FROM orders
-             WHERE order_type_id = (SELECT order_type_id FROM order_types WHERE name = 'Buy')
-             AND volume > 0
-             ORDER BY price DESC, timestamp ASC, volume DESC;`
+      WHERE order_type_id = (SELECT order_type_id FROM order_types WHERE name = 'Buy')
+      AND volume > 0
+      ORDER BY product_id ASC, price DESC, timestamp ASC, volume DESC;`
     );
     const buyOrders = buyOrdersResult.rows;
 
     // 2. Fetch all pending Sell orders (lowest price, then oldest time, then largest volume)
     const sellOrdersResult = await pool.query(
       `SELECT * FROM orders
-             WHERE order_type_id = (SELECT order_type_id FROM order_types WHERE name = 'Sell')
-             AND volume > 0
-             ORDER BY price ASC, timestamp ASC, volume DESC;`
+      WHERE order_type_id = (SELECT order_type_id FROM order_types WHERE name = 'Sell')
+      AND volume > 0
+      ORDER BY product_id ASC, price ASC, timestamp ASC, volume DESC;`
     );
     const sellOrders = sellOrdersResult.rows;
 
-    const matches = [];
-
-    // Corrected Price-Time-Volume matching algorithm
-    let buyOrderIndex = 0;
-    let sellOrderIndex = 0;
-
-    while (
-      buyOrderIndex < buyOrders.length &&
-      sellOrderIndex < sellOrders.length
-    ) {
-      const buyOrder = buyOrders[buyOrderIndex];
-      const sellOrder = sellOrders[sellOrderIndex];
-
-      // Ensure orders are for the same product
-      if (buyOrder.product_id !== sellOrder.product_id) {
-        sellOrderIndex++; // Move to next sell order if products don't match
-        continue;
+    // Group orders by product_id for processing { product_id: [group_of_buy_orders], }
+    const buyOrdersByProduct = buyOrders.reduce((acc, order) => {
+      if (!acc[order.product_id]) {
+        acc[order.product_id] = [];
       }
+      acc[order.product_id].push(order);
+      return acc;
+    }, {});
 
-      // Check if prices overlap for a match
-      if (buyOrder.price >= sellOrder.price) {
-        const tradeVolume = Math.min(buyOrder.volume, sellOrder.volume);
+    const sellOrdersByProduct = sellOrders.reduce((acc, order) => {
+      if (!acc[order.product_id]) {
+        acc[order.product_id] = [];
+      }
+      acc[order.product_id].push(order);
+      return acc;
+    }, {});
 
-        // Check to ensure we are not trading a volume of 0
+    const matches = [];
+    const productIds = new Set([
+      ...Object.keys(buyOrdersByProduct),
+      ...Object.keys(sellOrdersByProduct),
+    ]);
+
+    // Iterate through each product and run the matching algorithm
+    for (const productId of productIds) {
+      const productBuyOrders = buyOrdersByProduct[productId] || []; // [{},{},]
+      const productSellOrders = sellOrdersByProduct[productId] || [];
+
+      let buyOrderIndex = 0;
+      let sellOrderIndex = 0;
+
+      // Iterate through each order in the product's group of buy and sell orders
+      while (
+        buyOrderIndex < productBuyOrders.length &&
+        sellOrderIndex < productSellOrders.length
+      ) {
+        const buyOrder = productBuyOrders[buyOrderIndex]; // {order_id, user_id, product_id, price, volume, timestamp}
+        const sellOrder = productSellOrders[sellOrderIndex];
+
+        // Corrected: Convert price strings to numbers for a proper comparison
+        const buyPrice = parseFloat(buyOrder.price);
+        const sellPrice = parseFloat(sellOrder.price);
+
+        // If the highest buy price is less than the lowest sell price, no more matches are possible for this product.
+        if (buyPrice < sellPrice) {
+          console.log(
+            `[Product ${productId}] No price overlap. Breaking loop.`
+          );
+          break;
+        }
+
+        // A match is found. Calculate the trade volume and price.
+        const tradeVolume = Math.min(
+          parseFloat(buyOrder.volume),
+          parseFloat(sellOrder.volume)
+        );
+        const tradePrice = buyPrice;
+
         if (tradeVolume > 0) {
-          const tradePrice = buyOrder.price;
-
-          // 1. Record the match in memory
           matches.push({
             seller_user_id: sellOrder.user_id,
             buyer_user_id: buyOrder.user_id,
@@ -58,10 +89,20 @@ exports.runMatchingAlgorithm = async (req, res) => {
             volume: tradeVolume,
           });
 
-          // 2. Insert match into matchings table
+          console.log(`[Product ${productId}] Match found: `);
+          console.log(
+            `  Buy Order ID: ${buyOrder.order_id}, User: ${buyOrder.user_id}, Volume: ${buyOrder.volume}`
+          );
+          console.log(
+            `  Sell Order ID: ${sellOrder.order_id}, User: ${sellOrder.user_id}, Volume: ${sellOrder.volume}`
+          );
+          console.log(
+            `  Trade Volume: ${tradeVolume}, Trade Price: ${tradePrice}`
+          );
+
           await pool.query(
             `INSERT INTO matchings (seller_user_id, buyer_user_id, product_id, price, volume)
-                         VALUES ($1, $2, $3, $4, $5)`,
+             VALUES ($1, $2, $3, $4, $5)`,
             [
               sellOrder.user_id,
               buyOrder.user_id,
@@ -71,9 +112,8 @@ exports.runMatchingAlgorithm = async (req, res) => {
             ]
           );
 
-          // 3. Update remaining volumes for the matched orders in the database
-          const newBuyVolume = buyOrder.volume - tradeVolume;
-          const newSellVolume = sellOrder.volume - tradeVolume;
+          const newBuyVolume = parseFloat(buyOrder.volume) - tradeVolume;
+          const newSellVolume = parseFloat(sellOrder.volume) - tradeVolume;
 
           await pool.query(
             "UPDATE orders SET volume = $1 WHERE order_id = $2",
@@ -84,21 +124,18 @@ exports.runMatchingAlgorithm = async (req, res) => {
             [newSellVolume, sellOrder.order_id]
           );
 
-          // 4. Update the in-memory order objects to reflect the changes
+          // Update the in-memory order objects to reflect the changes
           buyOrder.volume = newBuyVolume;
           sellOrder.volume = newSellVolume;
         }
 
-        // 5. Move to the next orders if they are fully filled
-        if (buyOrder.volume === 0) {
+        // Advance pointers based on which orders are fully filled
+        if (parseFloat(buyOrder.volume) === 0) {
           buyOrderIndex++;
         }
-        if (sellOrder.volume === 0) {
+        if (parseFloat(sellOrder.volume) === 0) {
           sellOrderIndex++;
         }
-      } else {
-        // No match possible with this buy order, move to the next one
-        buyOrderIndex++;
       }
     }
 

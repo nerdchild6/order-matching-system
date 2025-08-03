@@ -4,7 +4,7 @@ exports.submitOrder = async (req, res) => {
   const { userId, orderTypeId, productId, price, volume } = req.body;
 
   try {
-    // Validate incoming data (basic example)
+    // Validate incoming data
     if (!userId || !orderTypeId || !productId || !price || !volume) {
       return res.status(400).json({ error: "All order fields are required." });
     }

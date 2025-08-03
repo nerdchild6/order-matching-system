@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const usersController = require("../controllers/usersController"); // Import the controller
+const usersController = require("../controllers/formController"); // Import the controller
 
 // Route to get all users
-router.get("/", usersController.getAllUsers);
+router.get("/users", usersController.getAllUsers);
 
 // Route to get all products
 router.get("/products", usersController.getAllProducts);

@@ -18,15 +18,15 @@ function OrderForm() {
     const fetchDropdownData = async () => {
       try {
         // Fetch users
-        const usersResponse = await axios.get("/api/users");
+        const usersResponse = await axios.get("/api/form/users");
         setUsers(usersResponse.data);
 
         // Fetch products
-        const productsResponse = await axios.get("/api/users/products");
+        const productsResponse = await axios.get("/api/form/products");
         setProducts(productsResponse.data);
 
         // Fetch order types (Buy/Sell)
-        const orderTypesResponse = await axios.get("/api/users/order-types");
+        const orderTypesResponse = await axios.get("/api/form/order-types");
         setOrderTypes(orderTypesResponse.data);
       } catch (error) {
         console.error("Error fetching dropdown data:", error);
@@ -255,8 +255,8 @@ function OrderForm() {
             style={{
               marginTop: "15px",
               padding: "10px",
-              backgroundColor: "#f8d7da",
-              color: "#721c24",
+              backgroundColor: "#74ec67ff",
+              color: "#178125ff",
               borderRadius: "4px",
               border: "1px solid #f5c6cb",
             }}
